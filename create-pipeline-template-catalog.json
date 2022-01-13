@@ -3,7 +3,7 @@
     "scm":{ 
       "$class":"GitHubSCMSource",
       "credentialsId":"cloudbees-ci-workshop-github-app",
-      "repoOwner":"REPLACE_GITHUB_ORG",
+      "repoOwner":"jenkins-code-ac",
       "repository":"pipeline-template-catalog"
     },
     "branchOrTag":"main",
