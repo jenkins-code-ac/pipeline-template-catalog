@@ -1,0 +1,33 @@
+version: 1
+type: pipeline-template
+name: Pipeline Policies GitOps
+templateType: MULTIBRANCH
+description: Provides GitOps for changes made to CloudBees CI Pipeline Policies.
+parameters:
+  - name: repoOwner
+    type: string
+    displayName: GitHub Organization
+  - name: repository
+    type: string
+    displayName: GitHub Repository
+    defaultValue: pipeline-policies
+  - name: githubCredentialId
+    displayName: GitHub Credential ID
+    type: CREDENTIALS
+    defaultValue: cloudbees-ci-workshop-github-app
+multibranch:
+  branchSource:
+    github:
+      id: cloudbees-ci-config-bundle
+      credentialsId: ${githubCredentialId}
+      repoOwner: ${repoOwner}
+      repository: ${repository}
+      traits:
+        - gitHubBranchDiscovery:
+            strategyId: 1
+        - gitHubPullRequestDiscovery:
+            strategyId: 1
+        - gitHubForkDiscovery:
+            strategyId: 1
+            trust:
+              $class: TrustPermission

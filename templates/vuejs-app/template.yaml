@@ -1,0 +1,33 @@
+version: 1
+type: pipeline-template
+name: VueJS
+templateType: MULTIBRANCH
+description: Test, Build and Deploy for Microblog Frontend application
+parameters:
+  - name: repoOwner
+    type: string
+    displayName: GitHub Organization
+  - name: repository
+    type: string
+    displayName: repository
+    defaultValue: microblog-frontend
+  - name: githubCredentialId
+    displayName: GitHub Credential ID
+    type: CREDENTIALS
+    defaultValue: cbdays-github-username-pat
+  - name: gcpProject
+    type: string
+    displayName: GCP Project
+    defaultValue: cb-days-workshop
+  - name: deploymentDomain
+    type: string
+    displayName: Deployment Domain
+    defaultValue: workshop.labs.cb-sa.io
+multibranch:
+  branchSource:
+    github:
+      id: VueJS
+      credentialsId: ${githubCredentialId}
+      repoOwner: ${repoOwner}
+      repository: ${repository}
+  markerFile: .vuejs     

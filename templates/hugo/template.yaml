@@ -1,0 +1,79 @@
+version: 1
+type: pipeline-template
+name: Hugo Pipeline
+templateType: MULTIBRANCH
+description: Build and deploy your hugo application.
+parameters:
+  - name: projectName
+    type: string
+    displayName: Project Name
+  - name: repoOwner
+    type: string
+    displayName: Repository Owner
+  - name: repo
+    type: string
+    displayName: Repository
+  - name: githubCredentialId
+    displayName: GitHub Credential ID
+    type: CREDENTIALS
+    defaultValue: cbdays-github-token
+  - name: baseUrl
+    type: string
+    displayName: Hugo hostname (and path) to the root, e.g. http://spf13.com/
+  - name: changesetDir
+    type: string
+    displayName: filesystem path to directory to check for changes to trigger build for site
+  - name: config
+    type: string
+    displayName: config file (default is path/config.yaml|json|toml)
+  - name: contentDir
+    type: string
+    displayName: filesystem path to content directory
+  - name: sourceDir
+    type: string
+    displayName: Hugo filesystem path to read files relative from
+  - name: bucketName
+    type: string
+    displayName: GCP Storage Bucket
+  - name: bucketFolderName
+    type: string
+    displayName: GCP Storage Bucket Folder (optional)
+  - name: gcpProject
+    type: string
+    displayName: GCP Project
+    defaultValue: core-workshop
+  - name: gcpRegionPR
+    type: string
+    displayName: PR GCP Region
+    defaultValue: us-central1
+  - name: deployTypePR
+    type: string
+    displayName: PR Deploy Type (managed/gke/vmware)
+    defaultValue: managed
+  - name: clusterNamePR
+    type: string
+    displayName: PR Cluster Name (only for GKE deploy)
+  - name: namespacePR
+    type: string
+    displayName: PR Namespace (for gke/vmware)
+  - name: gcpRegionMaster
+    type: string
+    displayName: Master GCP Region
+    defaultValue: us-central1
+  - name: deployTypeMaster
+    type: string
+    displayName: Master Deploy Type (managed/gke/vmware)
+    defaultValue: managed
+  - name: clusterNameMaster
+    type: string
+    displayName: Master deploy Cluster Name (only for GKE deploy)
+  - name: namespaceMaster
+    type: string
+    displayName: Master deploy namespace(for gke/vmware)
+multibranch:
+  branchSource:
+    github:
+      id: ${projectName}
+      credentialsId: ${githubCredentialId}
+      repoOwner: ${repoOwner}
+      repository: '${repo}'

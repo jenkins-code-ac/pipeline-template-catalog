@@ -1,0 +1,29 @@
+version: 1
+type: pipeline-template
+name: Node.js App Multibranch Pipeline
+templateType: MULTIBRANCH
+description: Test, Build and Deploy for Standard Node.js Applications using a .nodejs-app as the marker file. You must add a .nodejs-app file to each branch you want built. 
+parameters:
+  - name: repoOwner
+    type: string
+    displayName: Repository Owner
+  - name: npmPackages
+    type: string
+    displayName: Default NPM Packages
+    defaultValue: express pug
+  - name: githubCredentialId
+    displayName: GitHub Credential ID
+    type: CREDENTIALS
+    defaultValue: cbdays-github-token
+  - name: gcpProject
+    type: string
+    displayName: GCP Project
+    defaultValue: core-workshop
+multibranch:
+  branchSource:
+    github:
+      id: helloworld-nodejs
+      credentialsId: ${githubCredentialId}
+      repoOwner: ${repoOwner}
+      repository: 'helloworld-nodejs'
+  markerFile: .nodejs-app

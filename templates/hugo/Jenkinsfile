@@ -1,0 +1,126 @@
+library 'pipeline-library'
+def hugoPodYaml = libraryResource 'podtemplates/hugo/pod.yml'
+def prNumber
+pipeline {
+  agent {
+    kubernetes {
+      label 'hugo-builder'
+      yaml hugoPodYaml
+    }
+  }
+  options { 
+    buildDiscarder(logRotator(numToKeepStr: '5'))
+    skipDefaultCheckout true
+    preserveStashes(buildCount: 2)
+    disableConcurrentBuilds(abortPrevious: true)
+  }
+  triggers {
+    eventTrigger jmespathQuery("action=='closed' && repository.full_name=='${repoOwner}/${repo}'")
+  }
+  environment {
+    repoOwner = "${repoOwner}"
+    repo = "${repo}"
+    githubCredentialId = "${githubCredentialId}"
+    credId = "${githubCredentialId}"
+  }
+  stages {
+    stage("Checkout") {
+      steps {
+        checkout scm
+        gitShortCommit()
+      }
+    } 
+    stage('Preview environment') {
+      when {
+        allOf {
+          not { triggeredBy 'EventTriggerCause' }
+          branch 'pr-*'
+          anyOf {
+            changeset "${changesetDir}/**"
+            triggeredBy 'UserIdCause'
+          }
+        }
+      }
+      stages {
+        stage("Build site") {
+          steps {
+            gitHubDeploy(repoOwner, repo, "", "${projectName} preview", "${githubCredentialId}", "true", "false")
+            sh "git submodule update --init"
+            dir("${sourceDir}") {
+              container('hugo') {
+                sh "hugo --config ${config} --contentDir ${contentDir}"
+                stash name: "public", includes: "public/**,Dockerfile,nginx/**"
+              }
+            }
+          }
+        }
+        stage("Build and push image") {
+          steps {
+            containerBuildPushGeneric("${projectName}", "${BRANCH_NAME.toLowerCase()}", "${gcpProject}"){
+              unstash "public"
+            }
+          }
+        }
+        stage("Deploy Preview") {
+          steps {
+            cloudRunDeploy(serviceName: "${projectName}-${BRANCH_NAME.toLowerCase()}", image: "gcr.io/${gcpProject}/${projectName}:${BRANCH_NAME.toLowerCase()}", deployType: "${deployTypePR}", region: "${gcpRegionPR}", clusterName: "${clusterNamePR}", namespace: "${namespacePR}")
+          }
+        }
+      }
+    }
+    stage('Master build & deploy') {
+      when {
+        allOf {
+          not { triggeredBy 'EventTriggerCause' }
+          branch 'main'
+          anyOf {
+            changeset "${changesetDir}/**"
+            triggeredBy 'UserIdCause'
+          }
+        }
+      }
+      stages {
+        stage("Build site") {
+          steps {
+            gitHubDeploy(repoOwner, repo, "", "${projectName} production", "${githubCredentialId}", "false", "true")
+            sh "git submodule update --init"
+            dir("${sourceDir}") {
+              container('hugo') {
+                sh "hugo --baseURL ${baseUrl} --config ${config} --contentDir ${contentDir}"
+                stash name: "public", includes: "public/**"
+              }
+            }
+          }
+        }
+        stage("Deploy") {
+          steps {
+            gcpCloudStorageDeploy("${bucketName}", "${bucketFolderName}", "${baseUrl}") {
+              unstash "public"
+            }
+          }
+        }
+      }
+    }  
+    stage('PR Delete') {
+      agent {
+        kubernetes {
+          label 'default-jnlp'
+        }
+      }
+      when {
+        beforeAgent true
+        allOf {
+          branch 'main'
+          triggeredBy 'EventTriggerCause' 
+        }
+      }
+      steps {
+        script {
+          def event = currentBuild.getBuildCauses()[0].event
+          prNumber = event.number.toString()
+        }
+        cloudRunDelete(serviceName: "${projectName}-pr-${prNumber}", deployType: "${deployTypePR}", region: "${gcpRegionPR}", clusterName: "${clusterNamePR}", namespace: "${namespacePR}")
+      }
+    }
+  }
+}

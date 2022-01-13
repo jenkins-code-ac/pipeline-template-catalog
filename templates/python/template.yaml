@@ -1,0 +1,31 @@
+  
+version: 1
+type: pipeline-template
+name: Python
+templateType: MULTIBRANCH
+description: Test, Build and Deploy for Microblog Backend application
+parameters:
+  - name: repoOwner
+    type: string
+    displayName: Repository Owner
+  - name: repository
+    type: string
+    displayName: repository
+  - name: githubCredentialId
+    displayName: GitHub Credential ID
+    type: CREDENTIALS
+  - name: gcpProject
+    type: string
+    displayName: GCP Project
+    defaultValue: cb-days-workshop
+  - name: deploymentDomain
+    type: string
+    displayName: Deployment Domain
+    defaultValue: v1.k8s.tel
+multibranch:
+  branchSource:
+    github:
+      id: Python
+      credentialsId: ${githubCredentialId}
+      repoOwner: ${repoOwner}
+      repository: ${repository}

@@ -1,0 +1,43 @@
+library 'pipeline-library@master'
+def testPodYaml = libraryResource 'podtemplates/python/python-test-pod.yml'
+pipeline {
+  agent none
+  options { 
+    buildDiscarder(logRotator(numToKeepStr: '2'))
+    skipDefaultCheckout true
+    preserveStashes(buildCount: 2)
+  }
+  environment {
+    repoOwner = "${repoOwner}"
+    credId = "${githubCredentialId}"
+  }
+  stages('Python Test and Build')
+  {
+    stage('Build and Push Image') {
+      when {
+        beforeAgent true
+        branch 'master'
+      }
+      steps {
+        containerBuildPushGeneric("${repoOwner}/${repository}", "latest", "${gcpProject}")
+        {
+          checkout scm
+          gitShortCommit()
+          stash name: "k8s-deploy", includes: ".kubernetes/**"  
+        }
+      }
+    }
+    stage('Deploy') {
+      when {
+        beforeAgent true
+        branch 'master'
+      }
+      steps {
+        blogBackendKubeDeploy("${repository}", "${repoOwner}", "gcr.io/${gcpProject}", "${deploymentDomain}") {
+          unstash "k8s-deploy" 
+        }
+      }
+    }
+  }
+}
+

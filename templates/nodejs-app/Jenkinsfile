@@ -1,0 +1,92 @@
+library 'pipeline-library'
+def testPodYaml = libraryResource 'podtemplates/nodejs-app/web-test-pod.yml'
+def loadTestPodYaml = libraryResource 'podtemplates/nodejs-app/load-test-pod.yml'
+pipeline {
+  agent none
+  options { 
+    buildDiscarder(logRotator(numToKeepStr: '2'))
+    skipDefaultCheckout true
+    preserveStashes(buildCount: 2)
+  }
+  environment {
+    repoOwner = "${repoOwner}"
+    credId = "${githubCredentialId}"
+  }
+  stages {
+    stage('Web Tests') {
+      agent {
+        kubernetes {
+          label 'nodejs-testcafe'
+          yaml testPodYaml
+        }
+      }
+      when {
+        beforeAgent true
+        branch 'development'
+      }
+      stages {
+        stage('Nodejs Setup') {
+          steps {
+            checkout scm
+            defineProps('.nodejs-app', [npmPackages: 'express pug'])            
+            container('nodejs') {
+              sh """
+                pkill node
+                npm i -S ${npmPackages}
+                node ./hello.js &
+              """
+            }
+          }   
+        }
+        stage('Testcafe') {
+          steps {
+            echo 'testcafe'
+            container('testcafe') {
+              sh '/opt/testcafe/docker/testcafe-docker.sh "chromium --no-sandbox" tests/*.js -r xunit:res.xml'
+            }
+          }   
+        }
+      }  
+      post {
+        always {
+          junit 'res.xml'
+        }
+      } 
+    }
+    stage('Main Branch Stages') {
+      when {
+        beforeAgent true
+        branch 'main'
+      }
+      stages {
+        stage('Build and Push Image') {
+          steps {  
+            echo "${repoOwner}"
+            containerBuildPushGeneric("helloworld-nodejs", "${repoOwner.toLowerCase()}-${env.BUILD_NUMBER}", "${gcpProject}") {
+              checkout scm
+              gitShortCommit()
+            }
+          }
+          post {
+            success {
+              echo "${JOB_NAME} pipeline job is awaiting approval at: ${RUN_DISPLAY_URL}"
+            }
+          }
+        }
+        stage('Deploy') {
+          when {
+            beforeAgent true
+            branch 'main'
+          }
+          options {
+            timeout(time: 90, unit: 'SECONDS') 
+          }
+          steps {
+            input(message: "Should we deploy?", ok: "Deploy", submitterParameter: "APPROVER")
+            kubeDeploy(env.IMAGE_NAME, env.IMAGE_TAG, "${githubCredentialId}", "${repoOwner}", "${gcpProject}")
+          }
+        }
+      }
+    }
+  }
+}

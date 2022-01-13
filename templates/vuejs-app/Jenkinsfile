@@ -1,0 +1,53 @@
+library 'pipeline-library'
+pipeline {
+  agent none
+  options { 
+    buildDiscarder(logRotator(numToKeepStr: '2'))
+    skipDefaultCheckout true
+    preserveStashes(buildCount: 2)
+    //timeout(time: 30, unit: 'MINUTES')
+  }
+  environment {
+    repoOwner = "${repoOwner}"
+    credId = "${githubCredentialId}"
+  }
+  stages('VueJS Test and Build')
+  {
+    stage('Build and Push Image') {
+      when {
+        beforeAgent true
+        anyOf { branch 'main'; branch 'development'; branch 'PR-*' }
+        not { triggeredBy 'BranchIndexingCause' }
+      }
+      steps { 
+        echo "preparing yarn build"
+        yarnBuild() {
+          checkout scm
+          gitShortCommit()
+          gitHubDeploy(repoOwner, repository, "http://development.${repoOwner}-${repository}.${deploymentDomain}")
+          stash name: "k8s-deploy", includes: ".kubernetes/**"
+        }
+        containerBuildPushGeneric("vuejs-app/${repoOwner}/${repository}", "latest", "${gcpProject}") {
+          unstash "app"
+        }
+      }
+    }
+    stage('Deploy') {
+      when {
+        beforeAgent true
+        anyOf { branch 'main'; branch 'development'; branch 'PR-*' }
+        not { triggeredBy 'BranchIndexingCause' }
+      }
+      // options {
+      //   timeout(time: 90, unit: 'SECONDS') 
+      // }
+      steps {
+        //input(message: "Should we deploy?", ok: "Deploy", submitterParameter: "APPROVER")
+        blogKubeDeploy("${repository}", "${repoOwner}", "gcr.io/${gcpProject}/vuejs-app", "${deploymentDomain}") {
+          unstash "k8s-deploy"
+        }
+      }
+    }  
+  }
+}
+
